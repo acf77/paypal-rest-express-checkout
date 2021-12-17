@@ -1,5 +1,5 @@
 const express = require("express");
-const ejs = require("ejs");
+const ejs = require('ejs');
 const paypal = require("paypal-rest-sdk");
 
 paypal.configure({
@@ -15,6 +15,8 @@ const app = express();
 app.set("view engine", "ejs");
 
 app.get("/", (req, res) => res.render("index"));
+
+// Payment request
 
 app.post("/pay", (req, res) => {
   const create_payment_json = {
@@ -93,5 +95,138 @@ app.get("/success", (req, res) => {
 });
 
 app.get("/cancel", (req, res) => res.send("Cancelled"));
+
+
+//Billing agreement request
+app.post("/agreement", (req, res) => {
+  const date = new Date();
+  date.setSeconds(date.getSeconds() + 4);
+
+  const billingPlanAttribs = {
+    name: "Food of the World Club Membership: Standard",
+    description: "Monthly plan for getting the t-shirt of the month.",
+    type: "fixed",
+    payment_definitions: [
+      {
+        name: "Standard Plan",
+        type: "REGULAR",
+        frequency_interval: "1",
+        frequency: "MONTH",
+        cycles: "11",
+        amount: {
+          currency: "BRL",
+          value: "19.99",
+        },
+      },
+    ],
+    merchant_preferences: {
+      setup_fee: {
+        currency: "BRL",
+        value: "1",
+      },
+      cancel_url: "http://localhost:3000/cancel",
+      return_url: "http://localhost:3000/processagreement",
+      max_fail_attempts: "0",
+      auto_bill_amount: "YES",
+      initial_fail_amount_action: "CONTINUE",
+    },
+  };
+
+  const billingPlanUpdateAttributes = [
+    {
+      op: "replace",
+      path: "/",
+      value: {
+        state: "ACTIVE",
+      },
+    },
+  ];
+
+  paypal.billingPlan.create(billingPlanAttribs, function (error, billingPlan) {
+    if (error) {
+      console.log(error);
+      throw error;
+    } else {
+      // Activate the plan by changing status to Active
+      paypal.billingPlan.update(
+        billingPlan.id,
+        billingPlanUpdateAttributes,
+        function (error, response) {
+          if (error) {
+            console.log(error);
+            throw error;
+          } else {
+            console.log(billingPlan.id);
+          }
+        }
+      );
+    }
+
+    const billingAgreementAttributes = {
+      name: "Fast Speed Agreement",
+      description: "Agreement for Fast Speed Plan",
+      start_date: date,
+      plan: {
+        id: billingPlan.id,
+      },
+      payer: {
+        payment_method: "paypal",
+      },
+      shipping_address: {
+        line1: "StayBr111idge Suites",
+        line2: "Cro12ok Street",
+        city: "San Jose",
+        state: "CA",
+        postal_code: "95112",
+        country_code: "US",
+      },
+    };
+
+    paypal.billingAgreement.create(
+      billingAgreementAttributes,
+      function (error, billingAgreement) {
+        if (error) {
+          console.error(error);
+          throw error;
+        } else {
+          //capture HATEOAS links
+          var links = {};
+          billingAgreement.links.forEach(function (linkObj) {
+            links[linkObj.rel] = {
+              href: linkObj.href,
+              method: linkObj.method,
+            };
+          });
+
+          //if redirect url present, redirect user
+          if (links.hasOwnProperty("approval_url")) {
+            res.redirect(links["approval_url"].href);
+          } else {
+            console.error("no redirect URI present");
+          }
+        }
+      }
+    );
+  });
+});
+
+app.get("/processagreement", function (req, res) {
+  const token = req.query.token;
+
+  paypal.billingAgreement.execute(
+    token,
+    {},
+    function (error, billingAgreement) {
+      if (error) {
+        console.error(error);
+        throw error;
+      } else {
+        console.log(JSON.stringify(billingAgreement));
+        res.send("Billing Agreement Created Successfully");
+      }
+    }
+  );
+});
+
 
 app.listen(3000, () => console.log("Server Started"));
