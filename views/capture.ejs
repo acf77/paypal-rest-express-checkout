@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Capture payment</title>
+  </head>
+  <body>
+    <h2>Add Order Id to procede to capture</h2>
+    <form action="/captureAuthData" method="post">
+      <% for (const i in captureAuthData) {%>
+      <input type="text" name="orderId[]" value="<%= captureAuthData[i].orderId %>" />
+      <input type="submit" value="Capture Order" />
+      <%} %>
+    </form>
+  </body>
+</html>

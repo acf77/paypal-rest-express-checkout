@@ -1,6 +1,9 @@
 const express = require("express");
-const ejs = require('ejs');
+const ejs = require("ejs");
 const paypal = require("paypal-rest-sdk");
+const bodyParser = require("body-parser");
+
+const app = express();
 
 paypal.configure({
   mode: "sandbox", //sandbox or live
@@ -10,9 +13,9 @@ paypal.configure({
     "ENv1Icom9j52rAv6Hz1jIRYWMroRh6ADnmhpWJ9qrXNufAXax8PAtDWJsp6hmwiTK4TAQm0qAWgVUBfL",
 });
 
-const app = express();
-
 app.set("view engine", "ejs");
+
+const urlEncodedParser = bodyParser.urlencoded({ extended: false });
 
 app.get("/", (req, res) => res.render("index"));
 
@@ -20,7 +23,7 @@ app.get("/", (req, res) => res.render("index"));
 
 app.post("/pay", (req, res) => {
   const create_payment_json = {
-    intent: "sale",
+    intent: "order",
     payer: {
       payment_method: "paypal",
     },
@@ -95,7 +98,6 @@ app.get("/success", (req, res) => {
 });
 
 app.get("/cancel", (req, res) => res.send("Cancelled"));
-
 
 //Billing agreement request
 app.post("/agreement", (req, res) => {
@@ -228,5 +230,87 @@ app.get("/processagreement", function (req, res) {
   );
 });
 
+// Order request
+
+app.post("/createAuthorization", (req, res) => {
+  const create_auth_json = {
+    intent: "authorize",
+    payer: {
+      payment_method: "paypal",
+    },
+    redirect_urls: {
+      return_url: "http://localhost:3000/captureAuthorization",
+      cancel_url: "http://localhost:3000/cancel",
+    },
+    transactions: [
+      {
+        item_list: {
+          items: [
+            {
+              name: "Camisa do Flamengo",
+              sku: "001",
+              price: "24.00",
+              currency: "BRL",
+              quantity: 1,
+            },
+          ],
+        },
+        amount: {
+          currency: "BRL",
+          total: "24.00",
+        },
+        description: "Camisa do Mengão",
+      },
+    ],
+  };
+
+  paypal.payment.create(create_auth_json, function (error, payment) {
+    if (error) {
+      throw error;
+    } else {
+      for (let i = 0; i < payment.links.length; i++) {
+        if (payment.links[i].rel === "approval_url") {
+          res.redirect(payment.links[i].href);
+          console.log(JSON.stringify(payment));
+        }
+      }
+    }
+  });
+});
+
+//Capture recent order
+
+// app.get('/capture', (req, res) => {
+//   res.render('capture.ejs');
+// })
+
+// app.post('/capture', urlEncodedParser, (req, res) => {
+//   res.json(req.body)
+// })
+
+app.get("/captureAuthorization", function (req, res) {
+  const orderId = "O-2WS74858RH752963T";
+
+  capture_details = {
+    amount: {
+      currency: "BRL",
+      total: "24.00",
+    },
+    is_final_capture: true,
+  };
+
+  paypal.order.capture(orderId, capture_details, function (error, capture) {
+    if (error) {
+      // throw error;
+      res.send(JSON.stringify(error));
+      console.log(error);
+    } else {
+      console.log(capture);
+      res.send("Order capture successfully!");
+    }
+  });
+
+  console.log(orderId);
+});
 
 app.listen(3000, () => console.log("Server Started"));
