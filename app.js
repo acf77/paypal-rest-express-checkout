@@ -239,7 +239,7 @@ app.post("/createAuthorization", (req, res) => {
       payment_method: "paypal",
     },
     redirect_urls: {
-      return_url: "http://localhost:3000/captureAuthorization",
+      return_url: "http://localhost:3000/capture",
       cancel_url: "http://localhost:3000/cancel",
     },
     transactions: [
@@ -278,18 +278,16 @@ app.post("/createAuthorization", (req, res) => {
   });
 });
 
-//Capture recent order
+// Capture recent order
 
-// app.get('/capture', (req, res) => {
-//   res.render('capture.ejs');
-// })
+app.get("/capture", (req, res) => {
+  res.render("capture.ejs");
+});
 
-// app.post('/capture', urlEncodedParser, (req, res) => {
-//   res.json(req.body)
-// })
+app.post("/capture", urlEncodedParser, (req, res) => {
+  console.log(req.body.orderId);
 
-app.get("/captureAuthorization", function (req, res) {
-  const orderId = "O-2WS74858RH752963T";
+  const orderId = req.body.orderId;
 
   capture_details = {
     amount: {
@@ -306,7 +304,7 @@ app.get("/captureAuthorization", function (req, res) {
       console.log(error);
     } else {
       console.log(capture);
-      res.send("Order capture successfully!");
+      res.send("Order captured successfully!");
     }
   });
 
